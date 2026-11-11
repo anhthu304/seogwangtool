@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Excel → Book (.xlsx)</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="compare.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+    :root {
+      --bg: #0f1117;
+      --surface: #181b24;
+      --border: #2a2e3e;
+      --accent: #4ade80;
+      --accent2: #60a5fa;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --error: #f87171;
+      --warn: #fbbf24
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 36px 24px
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 28px
+    }
+
+    .header h1 {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--accent)
+    }
+
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 14px;
+      padding: 44px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: all .2s;
+      max-width: 1200px;
+      margin: 0 auto 20px;
+      background: var(--surface)
+    }
+
+    .upload-zone:hover,
+    .upload-zone.drag {
+      border-color: var(--accent);
+      background: rgba(74, 222, 128, .05)
+    }
+
+    .upload-zone .icon {
+      font-size: 2.4rem;
+      margin-bottom: 10px
+    }
+
+    .upload-zone h3 {
+      font-size: 1rem;
+      font-weight: 500;
+      margin-bottom: 5px
+    }
+
+    .upload-zone p {
+      font-size: .78rem;
+      color: var(--muted)
+    }
+
+    #fileInput {
+      display: none
+    }
+
+    .status {
+      max-width: 1200px;
+      margin: 0 auto 16px;
+      padding: 12px 18px;
+      border-radius: 8px;
+      font-size: .82rem;
+      font-family: 'IBM Plex Mono', monospace;
+      display: none;
+      line-height: 1.6
+    }
+
+    .status.ok {
+      background: rgba(74, 222, 128, .1);
+      color: var(--accent);
+      border: 1px solid rgba(74, 222, 128, .3)
+    }
+
+    .status.err {
+      background: rgba(248, 113, 113, .1);
+      color: var(--error);
+      border: 1px solid rgba(248, 113, 113, .3)
+    }
+
+    .status.warn {
+      background: rgba(251, 191, 36, .1);
+      color: var(--warn);
+      border: 1px solid rgba(251, 191, 36, .3)
+    }
+
+    .debug-box {
+      max-width: 1200px;
+      margin: 0 auto 16px;
+      padding: 14px 18px;
+      border-radius: 8px;
+      font-size: .72rem;
+      font-family: 'IBM Plex Mono', monospace;
+      background: rgba(96, 165, 250, .06);
+      border: 1px solid rgba(96, 165, 250, .2);
+      color: var(--accent2);
+      display: none;
+      line-height: 1.9;
+      white-space: pre-wrap
+    }
+
+    .stats-box {
+      max-width: 1200px;
+      margin: 0 auto 20px;
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px
+    }
+
+    .stats-title {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: .68rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 16px
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 16px
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, .03);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px
+    }
+
+    .stat-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: .63rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 6px
+    }
+
+    .stat-val {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 1.45rem;
+      font-weight: 600;
+      line-height: 1
+    }
+
+    .stat-sub {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: .68rem;
+      color: var(--muted);
+      margin-top: 4px
+    }
+
+    .dl-wrap {
+      max-width: 1200px;
+      margin: 0 auto 28px;
+      display: none
+    }
+
+    .btn-dl {
+      display: block;
+      width: 100%;
+      padding: 18px 24px;
+      background: var(--accent);
+      color: #0a0f0a;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: .3px;
+      transition: all .15s;
+      position: relative;
+      z-index: 10
+    }
+
+    .btn-dl:hover {
+      background: #86efac;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(74, 222, 128, .25)
+    }
+
+    .btn-dl:active {
+      transform: translateY(0)
+    }
+
+    .btn-reset {
+      flex: 0 0 auto;
+      width: auto !important;
+      padding: 0 24px;
+      background: rgba(248, 113, 113, .08);
+      color: var(--error);
+      border: 1px solid rgba(248, 113, 113, .3);
+      font-size: .85rem
+    }
+
+    .btn-reset:hover {
+      background: rgba(248, 113, 113, .15);
+      border-color: rgba(248, 113, 113, .5);
+      box-shadow: none
+    }
+
+    .preview-wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: none
+    }
+
+    .preview-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: .7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 10px
+    }
+
+    .tbl-scroll {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .78rem;
+      background: var(--surface)
+    }
+
+    thead th {
+      background: #1e2130;
+      color: var(--muted);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: .65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      padding: 10px 12px;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap
+    }
+
+    tbody tr:nth-child(even) {
+      background: rgba(255, 255, 255, .015)
+    }
+
+    tbody tr:hover {
+      background: rgba(96, 165, 250, .06)
+    }
+
+    td {
+      padding: 8px 12px;
+      border-bottom: 1px solid rgba(42, 46, 62, .5);
+      vertical-align: middle
+    }
+
+    .c-stt {
+      text-align: center;
+      color: var(--muted);
+      font-family: 'IBM Plex Mono', monospace;
+      width: 38px
+    }
+
+    .c-code {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: .72rem;
+      color: var(--accent2);
+      white-space: nowrap
+    }
+
+    .c-name {
+      max-width: 420px;
+      line-height: 1.45
+    }
+
+    .c-hs {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: .72rem;
+      text-align: center;
+      white-space: nowrap
+    }
+
+    .c-num {
+      text-align: right;
+      font-family: 'IBM Plex Mono', monospace;
+      white-space: nowrap
+    }
+
+    .c-unit {
+      text-align: center;
+      color: var(--muted);
+      font-size: .7rem
+    }
+
+    .hs94 {
+      color: #fbbf24
+    }
+
+    .hs91 {
+      color: #a78bfa
+    }
+
+    .hs-other {
+      color: #94a3b8
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: .6rem;
+      padding: 1px 5px;
+      border-radius: 3px;
+      margin-top: 3px;
+      font-family: 'IBM Plex Mono', monospace
+    }
+    .marquee {
+      position: relative;
+      width: 90%;
+      max-width: 600px;
+      height: 90px;
+      margin: 0 auto;     
+      overflow: hidden;
+      white-space: nowrap;
+      border-radius: 16px;
+
+     
+    }
+
+    .hello {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center; /* canh giữa chữ theo chiều ngang trong khung */
+      height: 100%;
+      animation: chay-ngang 8s linear infinite;
+    }
+
+    .hello span {
+      font-size: 28px;
+      font-weight: bold;
+      color: #fff;
+      text-shadow: 1px 1px 3px rgba(255,255,255,0.8);
+      letter-spacing: 1px;
+    }
+
+    @keyframes chay-ngang {
+      0% {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      15% {
+        opacity: 1;
+      }
+      85% {
+        opacity: 1;
+      }
+      100% {
+        transform: translateX(-100%);
+        opacity: 0;
+      }
+    }
+
+    /* ── Đối chiếu phiếu xuất kho ── */
+    .cmp-wrap { max-width: 1200px; margin: 0 auto 24px; display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px }
+    .cmp-title { font-family: 'IBM Plex Mono', monospace; font-size: .8rem; color: var(--accent2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px }
+    .cmp-hint { font-size: .78rem; color: var(--muted); margin-bottom: 14px; line-height: 1.6 }
+    .cmp-pick { display: inline-block; padding: 10px 20px; border: 1px dashed var(--accent2); border-radius: 8px; color: var(--accent2); cursor: pointer; font-size: .85rem }
+    .cmp-pick:hover { background: rgba(96, 165, 250, .08) }
+    .cmp-files { font-family: 'IBM Plex Mono', monospace; font-size: .72rem; color: var(--muted); margin-left: 12px }
+    .cmp-banner { margin: 16px 0; padding: 12px 18px; border-radius: 8px; font-family: 'IBM Plex Mono', monospace; font-size: .85rem; font-weight: 600 }
+    .cmp-banner.ok { background: rgba(74, 222, 128, .1); color: var(--accent); border: 1px solid rgba(74, 222, 128, .3) }
+    .cmp-banner.bad { background: rgba(248, 113, 113, .1); color: var(--error); border: 1px solid rgba(248, 113, 113, .3) }
+    .cmp-sec { font-family: 'IBM Plex Mono', monospace; font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin: 18px 0 8px }
+    .cmp-tbl { width: 100%; border-collapse: collapse; font-size: .76rem }
+    .cmp-tbl th { background: #1e2130; color: var(--muted); font-size: .65rem; text-transform: uppercase; padding: 8px 10px; text-align: left; white-space: nowrap }
+    .cmp-tbl td { padding: 7px 10px; border-bottom: 1px solid rgba(42, 46, 62, .5); vertical-align: top }
+    .cmp-tbl tr.bad td { background: rgba(248, 113, 113, .08) }
+    .cmp-ok { color: var(--accent); font-weight: 600 }
+    .cmp-no { color: var(--error); font-weight: 600 }
+    .cmp-scroll { max-height: 460px; overflow: auto; border: 1px solid var(--border); border-radius: 8px }
+    .cmp-note { font-size: .76rem; color: var(--warn); margin: 6px 0; line-height: 1.6 }
+  </style>
+</head>
+
+<body>
+
+  <div class="header"
+    style="max-width: 1200px; margin: 0 auto 28px; display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1px solid var(--border); padding-bottom: 12px; padding-top: 12px; text-align: left;">
+    <h1 style="margin: 0;">📋 EXCEL → BOOK (.xlsx)</h1>
+    <div style="display: flex; gap: 24px; font-family: 'IBM Plex Mono', monospace; font-size: 0.9rem;">
+      <a href="export.html"
+        style="color: var(--accent); text-decoration: none; font-weight: 600; border-bottom: 2px solid var(--accent); padding-bottom: 4px;">EXPORT
+      </a>
+      <a href="import.html"
+        style="color: var(--muted); text-decoration: none; padding-bottom: 4px; transition: color 0.2s;"
+        onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">IMPORT</a>
+      <a href="npl.html"
+        style="color: var(--muted); text-decoration: none; padding-bottom: 4px; transition: color 0.2s;"
+        onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">NPL</a>
+    </div>
+  </div>
+  <div class="marquee">
+    <div class="hello">
+      <span>Hello chị Thư</span>
+    </div>
+  </div>
+
+  <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+    <div class="icon">📂</div>
+    <h3>Kéo thả hoặc click để chọn file Excel</h3>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+  </div>
+
+  <div class="status" id="status"></div>
+  <div class="debug-box" id="debugBox"></div>
+
+  <div class="stats-box" id="statsBox">
+    <div class="stats-title">📊 Thống kê</div>
+    <div class="stats-grid" id="statsGrid"></div>
+    <div id="packRow" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
+      <div class="stats-title" style="margin-bottom:10px">📦 <span id="packRowLabel">PACKING</span></div>
+      <div class="stats-grid" id="packGrid"></div>
+    </div>
+  </div>
+
+  <div class="dl-wrap" id="dlWrap">
+    <div
+      style="margin-bottom:12px;display:flex;align-items:center;justify-content:flex-end;gap:8px;background:rgba(255,255,255,.02);padding:12px 18px;border:1px solid var(--border);border-radius:8px">
+      <input type="checkbox" id="chkConcatCode" onchange="renderPreview()" checked
+        style="width:18px;height:18px;cursor:pointer;accent-color:var(--accent)">
+      <label for="chkConcatCode"
+        style="font-family:'IBM Plex Mono',monospace;font-size:.85rem;cursor:pointer;user-select:none;color:var(--accent2)">Gắn
+        Code vô 😒</label>
+    </div>
+    <div style="display:flex;gap:12px;align-items:stretch">
+      <button class="btn-dl" onclick="downloadBook()"
+        style="flex:1;width:auto;font-family:'IBM Plex Sans',sans-serif;font-size:1.1rem;letter-spacing:1px">⚡ EXPORT
+        EXCEL</button>
+      <button class="btn-dl btn-reset" onclick="resetApp()">🗑 RESET</button>
+    </div>
+  </div>
+
+  <div class="cmp-wrap" id="cmpWrap">
+    <div class="cmp-title">🔍 Đối chiếu phiếu xuất kho (PDF)</div>
+    <div class="cmp-hint">Chọn các file PDF phiếu xuất kho (chọn được nhiều file cùng lúc). Tool đối chiếu các file bạn đưa vào:<br>
+      • Phiếu xuất kho ↔ sheet INVOICE: mã hàng, tên hàng, số lượng, đơn giá, trị giá (ưu tiên giá Processing fee, không có thì lấy DAP VALUE).<br>
+      • Phiếu xuất kho ↔ sheet MẪU 27 PXK: số phiếu, ngày phiếu, tổng số lượng, tổng trị giá.<br>
+      • Chữ "phí gia công": phiếu nào đã có thì mọi dòng hàng của phiếu đó đều phải có.</div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <span id="bcctInfo" style="font-family:'IBM Plex Mono',monospace;font-size:.75rem"></span>
+      <label class="cmp-pick" for="bcctInput" id="bcctBtn" style="padding:6px 14px;font-size:.78rem">📥 Chọn file BCCT</label>
+      <input type="file" id="bcctInput" accept=".xls,.xlsx" style="display:none">
+    </div>
+    <div class="upload-zone" id="pdfDrop" style="max-width:none;margin:0;padding:28px 24px" onclick="document.getElementById('pdfInput').click()">
+      <div class="icon">📄</div>
+      <h3>Kéo thả hoặc click để chọn file PDF phiếu xuất kho</h3>
+      <p>Chọn được nhiều file cùng lúc</p>
+      <input type="file" id="pdfInput" accept=".pdf,application/pdf" multiple style="display:none">
+    </div>
+    <div class="cmp-files" id="cmpFiles" style="margin:10px 0 0"></div>
+    <div id="cmpResult"></div>
+  </div>
+
+  <div class="preview-wrap" id="previewWrap">
+    <div class="preview-label" id="previewLabel">📄 Preview</div>
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>STT</th>
+            <th>Mã hàng</th>
+            <th>Tên hàng</th>
+            <th>HS Code</th>
+            <th>XC</th>
+            <th>Lượng 1</th>
+            <th>ĐV 1</th>
+            <th>Lượng 2</th>
+            <th>ĐV 2</th>
+            <th>Đơn giá</th>
+            <th>Trị giá</th>
+            <th>KO</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const HS_KO = ['85299094', '85299091', '39269099'];
+    const unit2 = u1 => (u1 === 'PCE' ? 'UNIT' : u1);
+    const HS_NOTE = { '85299094': 'DÙNG CHO MÀN HÌNH DẸT', '85299091': 'DÙNG CHO MÁY THU TRUYỀN HÌNH' };
+    let invWb = null, invVisible = [], invSheetName = '';
+    let bookData = [], packStats = { pkgs: null, nWeight: null, gWeight: null, sheetName: '' }, outFileName = 'book_output.xlsx', currentFileName = '';
+
+    const dz = document.getElementById('dropZone');
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag') });
+    dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+    dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag'); if (e.dataTransfer.files[0]) go(e.dataTransfer.files[0]) });
+    document.getElementById('fileInput').addEventListener('change', e => { if (e.target.files[0]) go(e.target.files[0]) });
+
+    function setStatus(msg, type) { const el = document.getElementById('status'); el.innerHTML = msg; el.className = 'status ' + type; el.style.display = 'block' }
+    function setDebug(msg) { const el = document.getElementById('debugBox'); el.textContent = msg; el.style.display = msg ? 'block' : 'none' }
+    function fmt(n) { return (n == null || n === '') ? '' : Number(n).toLocaleString('vi-VN') }
+    function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }
+    function norm(s) { return String(s || '').toUpperCase().replace(/[\s\n\r]/g, '').replace(/[^A-Z0-9\u00C0-\u1EF9]/g, '') }
+
+    function resetApp() {
+      document.getElementById('fileInput').value = '';
+      ['status', 'debugBox', 'statsBox', 'dlWrap', 'previewWrap', 'cmpWrap'].forEach(id => document.getElementById(id).style.display = 'none');
+      document.getElementById('pdfInput').value = ''; document.getElementById('cmpFiles').textContent = ''; document.getElementById('cmpResult').innerHTML = '';
+      invWb = null; invVisible = []; invSheetName = '';
+      document.getElementById('tbody').innerHTML = '';
+      bookData = [];
+    }
+
+    function cv(ws, colLetter, rowNum) {
+      const addr = colLetter.toUpperCase() + rowNum;
+      const c = ws[addr];
+      return c != null ? c.v : null;
+    }
+
+    function detectCols(ws) {
+      const logs = [];
+      const ref = ws['!ref'];
+      if (!ref) return null;
+      const range = XLSX.utils.decode_range(ref);
+      const maPat = /^[A-Z]{2}\d{2,}/;
+
+      const IS = {
+        ma: v => v.includes('ITEMNO') || v.includes('PARTNO') || v.includes('MÃHÀNG') || v.includes('MAHANG'),
+        ten: v => v.includes('DESCRIPTION') || v.includes('DESC') || v.includes('TÊNHÀNG') || v.includes('TENHANG'),
+        sl: v => (v.includes('QTY') || v.includes('QUANTITY') || v.includes('SỐLƯỢNG') || v.includes('SOLUONG')) && !v.includes('PRICE') && !v.includes('AMOUNT'),
+        price: v => (v.includes('UPRICE') || v.includes('UNITPRICE') || v.includes('PRICE') || v.includes('ĐƠNGIÁ') || v.includes('DONGIA')) && !v.includes('AMOUNT') && !v.includes('TOTAL') && !v.includes('THANHTIEN') && !v.includes('TRIGÍA'),
+        amount: v => v.includes('AMOUNT') || v.includes('TRỊGIÁ') || v.includes('TRIGÍA') || v.includes('THÀNHTIỀN') || v.includes('THANHTIEN'),
+        hs: v => v.includes('HSCODE') || v.includes('MAHSCODE') || v.includes('MÃHSCODE'),
+        pkgs: v => v === 'PKGS' || v === 'PKG' || v === 'PACKAGES' || v.startsWith('PKGS'),
+        nw: v => v === 'NW' || v.includes('NWEIGHT') || (v.includes('NET') && v.includes('W') && !v.includes('WORK')),
+        gw: v => v === 'GW' || v.includes('GWEIGHT') || (v.includes('GROSS') && v.includes('W')),
+      };
+
+      const found = { ma: null, ten: null, sl: null, hs: null, pkgs: null, nw: null, gw: null };
+      const allPriceCols = [], allAmountCols = [];
+      let headerZoneEnd = -1;
+
+      for (let r = range.s.r; r <= Math.min(range.s.r + 60, range.e.r); r++) {
+        let rowHasKeyword = false;
+
+        for (let c = range.s.c; c <= range.e.c; c++) {
+          const addr = XLSX.utils.encode_cell({ r, c });
+          const cell = ws[addr];
+          if (!cell || cell.v == null) continue;
+
+          const nv = norm(cell.v);
+          if (!nv) continue;
+
+          const letter = XLSX.utils.encode_col(c);
+
+          if (!found.ma && IS.ma(nv)) { found.ma = letter; rowHasKeyword = true }
+          if (!found.ten && IS.ten(nv)) { found.ten = letter; rowHasKeyword = true }
+          if (!found.sl && IS.sl(nv)) { found.sl = letter; rowHasKeyword = true }
+          if (!found.hs && IS.hs(nv)) { found.hs = letter; rowHasKeyword = true }
+          if (!found.pkgs && IS.pkgs(nv)) { found.pkgs = letter; rowHasKeyword = true }
+          if (!found.nw && IS.nw(nv)) { found.nw = letter; rowHasKeyword = true }
+          if (!found.gw && IS.gw(nv)) { found.gw = letter; rowHasKeyword = true }
+
+          if (IS.price(nv)) { allPriceCols.push(letter); rowHasKeyword = true }
+          if (IS.amount(nv)) { allAmountCols.push(letter); rowHasKeyword = true }
+        }
+
+        if (rowHasKeyword) headerZoneEnd = r;
+        else if (headerZoneEnd >= 0) {
+          let rowHasMa = false;
+          for (let c = range.s.c; c <= range.e.c; c++) {
+            const addr = XLSX.utils.encode_cell({ r, c });
+            const cell = ws[addr];
+            if (cell && cell.v && typeof cell.v === 'string' && maPat.test(cell.v.trim())) { rowHasMa = true; break }
+          }
+          if (rowHasMa) break;
+        }
+      }
+
+      const colDonGia = allPriceCols.length > 0 ? allPriceCols[allPriceCols.length - 1] : null;
+      const colTriGia = allAmountCols.length > 0 ? allAmountCols[allAmountCols.length - 1] : null;
+
+      const dataStartRow = headerZoneEnd >= 0 ? headerZoneEnd + 1 : range.s.r;
+
+      logs.push(`Range: ${ref}`);
+      logs.push(`Header zone kết thúc ở dòng Excel: ${headerZoneEnd + 1}`);
+      logs.push(`Data bắt đầu từ dòng Excel: ${dataStartRow + 1}`);
+      logs.push(`Mã[${found.ma || '?'}]  Tên[${found.ten || '?'}]  SL[${found.sl || '?'}]  HS[${found.hs || '?'}]`);
+      logs.push(`Tất cả Price cols: [${allPriceCols.join(', ')}]  →  ĐG = ${colDonGia || '?'}`);
+      logs.push(`Tất cả Amount cols: [${allAmountCols.join(', ')}]  →  TG = ${colTriGia || '?'}`);
+      logs.push(`Packing: Pkgs[${found.pkgs || '?'}]  NW[${found.nw || '?'}]  GW[${found.gw || '?'}]`);
+
+      return { dataStartRow, colMa: found.ma, colTen: found.ten, colSl: found.sl, colDonGia, colTriGia, colHs: found.hs, colPkgs: found.pkgs, colNW: found.nw, colGW: found.gw, range, debugInfo: logs.join('\n') };
+    }
+
+    // ── FIX: parse HS code an toàn từ cell value (số hoặc string) ──────────────
+    function parseHsFromCell(cellV) {
+      if (cellV == null) return null;
+      let numVal;
+      if (typeof cellV === 'number') {
+        // Phải là số nguyên — HS code không có thập phân
+        if (!Number.isInteger(cellV)) return null;
+        numVal = cellV;
+      } else {
+        // String: bóc hết ký tự không phải số rồi parse
+        const cleaned = String(cellV).replace(/\D/g, '');
+        if (!cleaned) return null;
+        numVal = parseInt(cleaned, 10);
+        if (isNaN(numVal)) return null;
+      }
+      const digits = String(numVal);
+      // HS Việt Nam luôn đúng 8 chữ số
+      if (digits.length !== 8) return null;
+      return digits;
+    }
+
+    function go(file) {
+      if (!file.name.match(/\.xlsx?$/i)) { setStatus('❌ Chỉ hỗ trợ file .xlsx', 'err'); return }
+      setStatus('⏳ Đang đọc file...', 'ok');
+      ['dlWrap', 'statsBox', 'previewWrap'].forEach(id => document.getElementById(id).style.display = 'none');
+      setDebug('');
+
+      const reader = new FileReader();
+      reader.onload = ev => {
+        try {
+          const wb = XLSX.read(ev.target.result, { type: 'array' });
+          function normSN(s) { try { return s.normalize('NFC').replace(/\s+/g, '').toUpperCase() } catch (e) { return s.replace(/\s+/g, '').toUpperCase() } }
+
+          const visible = wb.SheetNames.filter((n, i) => {
+            const st = wb.Workbook && wb.Workbook.Sheets && wb.Workbook.Sheets[i] ? wb.Workbook.Sheets[i].Hidden : 0;
+            return !st;
+          });
+
+          const invCB = visible.find(n => normSN(n).includes('INVOICECB') || (normSN(n).includes('INVOICE') && normSN(n).includes('CB')));
+          const invNorm = visible.find(n => normSN(n).startsWith('INVOICE') && !normSN(n).includes('CB') && !normSN(n).includes('PACK') && !normSN(n).includes('NHAP') && !normSN(n).includes('NHÁP'));
+          const hdName = invCB || invNorm || null;
+          if (!hdName) { setStatus('❌ Không tìm thấy sheet Invoice. Sheets: ' + wb.SheetNames.join(', '), 'err'); return }
+
+          const ws = wb.Sheets[hdName];
+          const cols = detectCols(ws);
+          if (!cols) { setStatus('❌ Sheet rỗng hoặc lỗi detect', 'err'); return }
+
+          setDebug('🔍 Sheet: "' + hdName + '"\n' + cols.debugInfo);
+
+          const { dataStartRow, colMa, colTen, colSl, colDonGia, colTriGia, colHs, range } = cols;
+          const maPat = /^[A-Z]{2}\d{2,}/;
+
+          // ── Build HS map ──────────────────────────────────────────────────────────
+          const hsMap = {};
+          for (let r = dataStartRow; r <= range.e.r; r++) {
+            const rowNum = r + 1;
+            const maRaw = colMa ? cv(ws, colMa, rowNum) : null;
+            if (!maRaw || typeof maRaw !== 'string') continue;
+            const maStr = maRaw.trim().replace(/\s+/g, '');
+            if (!maPat.test(maStr)) continue;
+
+            // 1) Ưu tiên: lấy từ colHs nếu detect được header
+            if (colHs) {
+              const hsVal = cv(ws, colHs, rowNum);
+              const parsed = parseHsFromCell(hsVal);
+              if (parsed) { hsMap[maStr] = parsed; continue; }
+            }
+
+            // 2) Fallback scan thông minh — chỉ nhận số NGUYÊN đúng 8 chữ số
+            //    Bỏ qua cột đã biết chứa số nghiệp vụ (giá, lượng, amount, stt, mã, tên)
+            //    Quan trọng: kiểm tra giá trị != amount dòng đó để tránh nhầm
+            if (!hsMap[maStr]) {
+              const rowAmountVal = colTriGia ? cv(ws, colTriGia, rowNum) : null;
+              const rowPriceVal = colDonGia ? cv(ws, colDonGia, rowNum) : null;
+              const rowSlVal = colSl ? cv(ws, colSl, rowNum) : null;
+
+              for (let c = range.s.c; c <= range.e.c; c++) {
+                const letter = XLSX.utils.encode_col(c);
+                // Bỏ qua tất cả cột đã biết vai trò
+                if ([colTriGia, colDonGia, colSl, colMa, colTen].includes(letter)) continue;
+
+                const addr = XLSX.utils.encode_cell({ r, c });
+                const cell = ws[addr];
+                if (!cell || cell.v == null) continue;
+
+                const parsed = parseHsFromCell(cell.v);
+                if (!parsed) continue;
+
+                // Loại nếu trùng với giá trị nghiệp vụ của dòng
+                const numParsed = parseInt(parsed, 10);
+                if (rowAmountVal != null && numParsed === rowAmountVal) continue;
+                if (rowPriceVal != null && numParsed === rowPriceVal) continue;
+                if (rowSlVal != null && numParsed === rowSlVal) continue;
+
+                hsMap[maStr] = parsed;
+                break;
+              }
+            }
+          }
+
+          // ── Đọc data ──────────────────────────────────────────────────────────────
+          bookData = [];
+          for (let r = dataStartRow; r <= range.e.r; r++) {
+            const rowNum = r + 1;
+            const maRaw = colMa ? cv(ws, colMa, rowNum) : null;
+            if (!maRaw || typeof maRaw !== 'string') continue;
+            const maStr = maRaw.trim().replace(/\s+/g, '');
+            if (!maPat.test(maStr) || /T[O0]TAL/i.test(maStr)) continue;
+
+            const ten = colTen ? cv(ws, colTen, rowNum) : null;
+            const slRaw = colSl ? cv(ws, colSl, rowNum) : null;
+            const slNum = Number(slRaw);
+            if (!slRaw || isNaN(slNum) || slNum <= 0) continue;
+
+            const dgRaw = colDonGia ? cv(ws, colDonGia, rowNum) : null;
+            const dgNum = dgRaw != null ? Number(dgRaw) : 0;
+
+            const tgRaw = colTriGia ? cv(ws, colTriGia, rowNum) : null;
+            const triVal = (tgRaw != null && !isNaN(Number(tgRaw))) ? Number(tgRaw) : slNum * dgNum;
+
+            let hs = hsMap[maStr] || '';
+            if (!hs) {
+              const sc = maStr.replace(/[^A-Z0-9]/g, '');
+              for (const k in hsMap) { if (k.replace(/[^A-Z0-9]/g, '') === sc) { hs = hsMap[k]; break } }
+            }
+            if (!hs) {
+              const sc = maStr.replace(/[^A-Z0-9]/g, '');
+              for (const k in hsMap) { const kc = k.replace(/[^A-Z0-9]/g, ''); if (kc.includes(sc) || sc.includes(kc)) { hs = hsMap[k]; break } }
+            }
+            if (!hs) {
+              const cut = maStr.replace(/[^A-Z0-9]/g, '').replace(/[A-Z]+$/, '');
+              if (cut.length > 5) { for (const k in hsMap) { if (k.replace(/[^A-Z0-9]/g, '').replace(/[A-Z]+$/, '') == cut) { hs = hsMap[k]; break } } }
+            }
+
+            const note = HS_NOTE[hs] || '';
+            const descStr = String(ten || '').trim();
+            const tenHang = note ? `${descStr}, ${note}, HÀNG MỚI 100%` : `${descStr}, HÀNG MỚI 100%`;
+            bookData.push({ ma: maStr, ten: tenHang, hs, luong: slNum, donGia: dgNum, triGia: Math.round(triVal) });
+          }
+
+          if (!bookData.length) { setStatus('⚠️ Không đọc được dòng nào! Xem debug box.', 'err'); return }
+
+          // ── PACKING sheet ─────────────────────────────────────────────────────────
+          packStats = { pkgs: null, nWeight: null, gWeight: null, sheetName: '' };
+          const packCB = visible.find(n => normSN(n).includes('PACKINGCB') || (normSN(n).includes('PACK') && normSN(n).includes('CB')));
+          const packNorm = visible.find(n => (normSN(n).startsWith('PACK') || normSN(n).startsWith('PAC')) && !normSN(n).includes('CB') && !normSN(n).includes('GOC') && !normSN(n).includes('GỐC'));
+          const packName = packCB || packNorm || null;
+
+          if (packName) {
+            packStats.sheetName = packName;
+            const wsPack = wb.Sheets[packName];
+            if (wsPack && wsPack['!ref']) {
+              const pc = detectCols(wsPack);
+              if (pc) {
+                const parseN = v => { if (v == null) return 0; if (typeof v === 'number') return v; const s = String(v).replace(/[^0-9.-]/g, ''); return s ? Number(s) : 0 };
+                let maxP = null, maxNW = null, maxGW = null;
+                for (let r = pc.dataStartRow; r <= pc.range.e.r; r++) {
+                  const rn = r + 1;
+                  if (pc.colPkgs) { const v = parseN(cv(wsPack, pc.colPkgs, rn)); if (v > 0 && (maxP === null || v > maxP)) maxP = v }
+                  if (pc.colNW) { const v = parseN(cv(wsPack, pc.colNW, rn)); if (v > 0 && (maxNW === null || v > maxNW)) maxNW = v }
+                  if (pc.colGW) { const v = parseN(cv(wsPack, pc.colGW, rn)); if (v > 0 && (maxGW === null || v > maxGW)) maxGW = v }
+                }
+                packStats.pkgs = maxP; packStats.nWeight = maxNW; packStats.gWeight = maxGW;
+              }
+            }
+          }
+
+          outFileName = 'BOOK.xlsx';
+          currentFileName = file.name;
+          const noHs = bookData.filter(d => !d.hs).length;
+          setStatus(`✅ Đọc được <strong>${bookData.length} dòng</strong>${noHs ? ` &nbsp;⚠️ ${noHs} dòng chưa có HS Code` : ''}`, (noHs ? 'warn' : 'ok'));
+          renderStats(); renderPreview(file.name);
+          document.getElementById('statsBox').style.display = 'block';
+          document.getElementById('dlWrap').style.display = 'block';
+          document.getElementById('previewWrap').style.display = 'block';
+          invWb = wb; invVisible = visible; invSheetName = hdName;
+          document.getElementById('cmpWrap').style.display = 'block';
+          document.getElementById('cmpResult').innerHTML = ''; document.getElementById('cmpFiles').textContent = ''; document.getElementById('pdfInput').value = '';
+
+        } catch (err) { setStatus('❌ Lỗi: ' + err.message, 'err'); console.error(err) }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function renderStats() {
+      const totSl = bookData.reduce((s, d) => s + (Number(d.luong) || 0), 0);
+      const totTri = bookData.reduce((s, d) => s + (Number(d.triGia) || 0), 0);
+      const cards = [{ label: 'Tổng dòng', val: bookData.length, sub: '', color: 'var(--accent)' }, { label: 'Tổng lượng', val: fmt(totSl), sub: 'PCE', color: 'var(--accent)' }, { label: 'Tổng trị giá', val: fmt(Math.round(totTri)), sub: 'VND', color: 'var(--accent)' }];
+      const packRow = document.getElementById('packRow');
+      if (packStats.pkgs !== null || packStats.gWeight !== null) {
+        document.getElementById('packRowLabel').textContent = packStats.sheetName || 'PACKING';
+        const pc = [];
+        if (packStats.pkgs !== null) pc.push({ label: 'Tổng PKGS', val: fmt(packStats.pkgs), sub: 'kiện', color: 'var(--accent2)' });
+        if (packStats.gWeight !== null) pc.push({ label: 'G.Weight', val: packStats.gWeight.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }), sub: 'KGS', color: 'var(--accent2)' });
+        document.getElementById('packGrid').innerHTML = pc.map(c => `<div class="stat-card"><div class="stat-label">${esc(c.label)}</div><div class="stat-val" style="color:${c.color}">${esc(String(c.val))}</div>${c.sub ? `<div class="stat-sub">${esc(c.sub)}</div>` : ''}</div>`).join('');
+        packRow.style.display = 'block';
+      } else { document.getElementById('packGrid').innerHTML = ''; packRow.style.display = 'none' }
+      document.getElementById('statsGrid').innerHTML = cards.map(c => `<div class="stat-card"><div class="stat-label">${esc(c.label)}</div><div class="stat-val" style="color:${c.color}">${esc(String(c.val))}</div>${c.sub ? `<div class="stat-sub">${esc(c.sub)}</div>` : ''}</div>`).join('');
+    }
+
+    function renderPreview(fname) {
+      const tb = document.getElementById('tbody'); tb.innerHTML = '';
+      const isConcat = document.getElementById('chkConcatCode').checked;
+      bookData.forEach((d, i) => {
+        const hs = d.hs, cls = hs === '85299094' ? 'hs94' : hs === '85299091' ? 'hs91' : 'hs-other';
+        const note = HS_NOTE[hs] || '', bgB = hs === '85299094' ? '#fbbf2422' : hs === '85299091' ? '#a78bfa22' : '#ffffff11', colB = hs === '85299094' ? '#fbbf24' : hs === '85299091' ? '#a78bfa' : '#94a3b8';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td class="c-stt">${i + 1}</td><td class="c-code">${esc(d.ma)}</td><td class="c-name">${esc(isConcat ? `${d.ma} - ${d.ten}` : d.ten)}</td><td class="c-hs ${cls}">${hs || '—'}${note ? `<br><span class="badge" style="background:${bgB};color:${colB}">${esc(note)}</span>` : ''}</td><td class="c-unit">VN</td><td class="c-num">${fmt(d.luong)}</td><td class="c-unit">PCE</td><td class="c-num">${fmt(d.luong)}</td><td class="c-unit">${unit2('PCE')}</td><td class="c-num">${fmt(d.donGia)}</td><td class="c-num">${fmt(d.triGia)}</td><td class="c-unit">${HS_KO.includes(hs) ? 'KO' : ''}</td>`;
+        tb.appendChild(tr);
+      });
+      if (fname) document.getElementById('previewLabel').textContent = `📄 Preview — ${fname || currentFileName}`;
+    }
+
+    // ───────────── Đối chiếu phiếu xuất kho ─────────────
+    if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    document.getElementById('pdfInput').addEventListener('change', e => { if (e.target.files.length) runCompare(Array.from(e.target.files)) });
+    const pdfDz = document.getElementById('pdfDrop');
+    pdfDz.addEventListener('dragover', e => { e.preventDefault(); pdfDz.classList.add('drag') });
+    pdfDz.addEventListener('dragleave', () => pdfDz.classList.remove('drag'));
+    pdfDz.addEventListener('drop', e => {
+      e.preventDefault(); pdfDz.classList.remove('drag');
+      const pdfs = Array.from(e.dataTransfer.files).filter(f => /\.pdf$/i.test(f.name));
+      if (!pdfs.length) { document.getElementById('cmpResult').innerHTML = '<div class="cmp-banner bad">❌ Chỉ nhận file .pdf</div>'; return }
+      runCompare(pdfs);
+    });
+
+    async function readPdfPages(file) {
+      const doc = await pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+      const pages = [];
+      for (let p = 1; p <= doc.numPages; p++) {
+        const tc = await (await doc.getPage(p)).getTextContent();
+        pages.push(tc.items.map(i => ({ s: i.str, x: i.transform[4], y: i.transform[5], w: i.width })));
+      }
+      return pages;
+    }
+
+    // BCCT do trang NPL lưu sẵn trong trình duyệt (IndexedDB "npl-tool" → "kv" → khoá "bcct")
+    // Trang này cũng tự chọn được BCCT (lưu cùng kho với NPL). Dùng khi trình duyệt không chia sẻ dữ liệu giữa 2 trang
+    // (ví dụ 1 trang mở từ file trong máy, 1 trang mở từ web — khác "địa chỉ" nên không thấy dữ liệu của nhau).
+    let bcctCache = null, lastPdfFiles = [], bcctStale = false;
+    function idbDo(mode, fn) {
+      return new Promise((res, rej) => {
+        try {
+          const q = indexedDB.open('npl-tool', 1);
+          q.onupgradeneeded = () => q.result.createObjectStore('kv');
+          q.onerror = () => rej(q.error);
+          q.onsuccess = () => {
+            try {
+              const t = q.result.transaction('kv', mode), r = fn(t.objectStore('kv'));
+              t.oncomplete = () => res(r && r.result);
+              t.onerror = () => rej(t.error);
+            } catch (e) { rej(e) }
+          };
+        } catch (e) { rej(e) }
+      });
+    }
+    async function loadBcct() {
+      if (bcctCache) return bcctCache;
+      try {
+        const v = await idbDo('readonly', s => s.get('bcct'));
+        // bản lưu từ cách đọc cũ (tên hàng bị cắt sai thành "VN") thì không dùng, yêu cầu chọn lại file
+        if (v && v.map) { if (v.ver === PxkCompare.BCCT_VER) bcctCache = v; else bcctStale = true; }
+      } catch (e) { console.warn('Không đọc được BCCT đã lưu', e) }
+      return bcctCache;
+    }
+    async function renderBcctBar() {
+      const b = await loadBcct(), el = document.getElementById('bcctInfo');
+      if (b) {
+        const d = b.savedAt ? new Date(b.savedAt).toLocaleDateString('vi-VN') : '';
+        el.innerHTML = `✅ BCCT đang dùng: <strong>${esc(b.fileName || '')}</strong> · ${b.count || Object.keys(b.map).length} mã${d ? ' · ' + d : ''}`; el.style.color = 'var(--accent)';
+      } else { el.textContent = bcctStale ? '⚠ BCCT đã lưu là bản cũ (đọc sai tên hàng) — bấm "Chọn file BCCT" để chọn lại 1 lần' : '⚠ Chưa có BCCT — bấm "Chọn file BCCT" (chỉ cần làm 1 lần)'; el.style.color = 'var(--warn)' }
+      document.getElementById('bcctBtn').textContent = b ? '📥 Cập nhật BCCT' : '📥 Chọn file BCCT';
+    }
+    document.getElementById('bcctInput').addEventListener('change', async e => {
+      const f = e.target.files[0]; if (!f) return;
+      try {
+        const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+        const sn = wb.SheetNames.includes('Sheet1') ? 'Sheet1' : wb.SheetNames[0];
+        const { map, count, ver } = PxkCompare.parseBcct(XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: null }));
+        bcctCache = { map, count, ver, fileName: f.name, savedAt: Date.now() };
+        bcctStale = false;
+        let saved = true;
+        try { await idbDo('readwrite', s => s.put(bcctCache, 'bcct')); } catch (err) { saved = false; console.warn('Không lưu được BCCT', err) }
+        await renderBcctBar();
+        if (!saved) { const el = document.getElementById('bcctInfo'); el.innerHTML += ' <span style="color:var(--warn)">⚠ Trình duyệt không cho lưu (chế độ ẩn danh / chặn dữ liệu trang?) nên lần sau mở lại phải chọn lại BCCT</span>'; }
+        if (lastPdfFiles.length) runCompare(lastPdfFiles); // đối chiếu lại với PDF đang mở
+      } catch (err) { document.getElementById('bcctInfo').textContent = '❌ Lỗi đọc BCCT: ' + err.message; document.getElementById('bcctInfo').style.color = 'var(--error)' }
+      e.target.value = '';
+    });
+    renderBcctBar();
+
+    function findMau27Rows() {
+      if (!invWb) return null;
+      const name = invVisible.find(n => /M[ẪA]U\s*27/i.test(n.normalize('NFC')));
+      if (!name) return null;
+      return XLSX.utils.sheet_to_json(invWb.Sheets[name], { header: 1, defval: null });
+    }
+
+    async function runCompare(files) {
+      lastPdfFiles = files;
+      const out = document.getElementById('cmpResult');
+      document.getElementById('cmpFiles').textContent = files.length + ' file: ' + files.map(f => f.name).join(', ');
+      if (typeof PxkCompare === 'undefined') { out.innerHTML = '<div class="cmp-banner bad">❌ Thiếu file <b>compare.js</b>: file này phải nằm cùng chỗ với export.html khi đưa tool lên web (cùng thư mục / cùng repo). Hãy upload thêm compare.js rồi tải lại trang (Ctrl+F5).</div>'; return }
+      if (!window.pdfjsLib) { out.innerHTML = '<div class="cmp-banner bad">❌ Chưa tải được thư viện đọc PDF (cần mạng). Tải lại trang rồi thử lại.</div>'; return }
+      out.innerHTML = '<div class="cmp-note">⏳ Đang đọc PDF...</div>';
+      try {
+        const pxks = [];
+        for (const f of files.sort((a, b) => a.name.localeCompare(b.name))) pxks.push(...PxkCompare.parsePxkFile(await readPdfPages(f), f.name));
+        const m27rows = findMau27Rows();
+        const mau27 = m27rows ? PxkCompare.parseMau27(m27rows) : null;
+        const inv = PxkCompare.parseInvoice(XLSX.utils.sheet_to_json(invWb.Sheets[invSheetName], { header: 1, defval: null }));
+        if (inv.error) { out.innerHTML = '<div class="cmp-banner bad">❌ ' + esc(inv.error) + '</div>'; return }
+        const bcct = await loadBcct();
+        const res = PxkCompare.compare(inv, pxks, mau27, bcct);
+        res.bcctInfo = bcct ? `${bcct.fileName || 'BCCT'} · ${bcct.count || Object.keys(bcct.map).length} mã${bcct.savedAt ? ' · cập nhật ' + new Date(bcct.savedAt).toLocaleDateString('vi-VN') : ''}` : '';
+        renderCompare(res);
+      } catch (err) { out.innerHTML = '<div class="cmp-banner bad">❌ Lỗi đối chiếu: ' + esc(err.message) + '</div>'; console.error(err) }
+    }
+
+    function renderCompare(res) {
+      const mark = ok => ok ? '<span class="cmp-ok">✓ Khớp</span>' : '<span class="cmp-no">✗ LỆCH</span>';
+      const v = x => (typeof x === 'number') ? fmt(x) : esc(x == null ? '' : x);
+      let h = res.errors === 0
+        ? '<div class="cmp-banner ok">✅ KHỚP HOÀN TOÀN — không có điểm nào lệch</div>'
+        : `<div class="cmp-banner bad">❌ Phát hiện ${res.errors} điểm lệch — xem các dòng đỏ bên dưới</div>`;
+      res.warnings.forEach(w => h += `<div class="cmp-note">⚠️ ${esc(w)}</div>`);
+
+      h += '<div class="cmp-sec">1. Từng phiếu xuất kho</div><div class="cmp-scroll"><table class="cmp-tbl"><thead><tr><th>Số phiếu</th><th>File</th><th>Kiểm tra</th><th>Trên PDF</th><th>Đối chiếu với</th><th>Kết quả</th></tr></thead><tbody>';
+      res.phieu.forEach(p => {
+        p.checks.forEach(c => { h += `<tr class="${c.ok ? '' : 'bad'}"><td>${esc(p.soPhieu)}</td><td>${esc(p.file)}</td><td>${esc(c.label)}</td><td>${v(c.a)}</td><td>${v(c.b)}</td><td>${mark(c.ok)}</td></tr>` });
+        const g = p.phiGC;
+        if (g && !g.none) h += `<tr class="${g.ok ? '' : 'bad'}"><td>${esc(p.soPhieu)}</td><td>${esc(p.file)}</td><td>Chữ "phí gia công" ở mọi dòng hàng</td><td>${g.withCount}/${g.total} dòng có chữ này</td><td>${g.ok ? 'tất cả dòng đều có' : 'THIẾU ở: ' + esc(g.missing.join('; '))}</td><td>${mark(g.ok)}</td></tr>`;
+        p.warnings.forEach(w => h += `<tr class="bad"><td>${esc(p.soPhieu)}</td><td>${esc(p.file)}</td><td colspan="4">⚠️ ${esc(w)}</td></tr>`);
+      });
+      h += '</tbody></table></div>';
+
+      h += '<div class="cmp-sec">2. Dòng Tổng của Mẫu 27 ↔ cộng các phiếu</div><div class="cmp-scroll"><table class="cmp-tbl"><thead><tr><th>Nội dung</th><th>Bên A</th><th>Bên B</th><th>Kết quả</th></tr></thead><tbody>';
+      res.totals.forEach(t => { h += `<tr class="${t.ok ? '' : 'bad'}"><td>${esc(t.label)}</td><td class="c-num">${v(t.a)}</td><td class="c-num">${v(t.b)}</td><td>${mark(t.ok)}</td></tr>` });
+      h += '</tbody></table></div>';
+
+      const badN = res.lines.filter(l => l.issues.length).length;
+      h += `<div class="cmp-sec">3. Từng dòng hàng (mã, tên, số lượng, đơn giá, trị giá) — ${res.lines.length - badN}/${res.lines.length} dòng khớp</div><div class="cmp-scroll"><table class="cmp-tbl"><thead><tr><th>Dòng INV</th><th>Mã hàng</th><th>SL (INV / PDF)</th><th>Đơn giá (INV / PDF)</th><th>Trị giá (INV / PDF)</th><th>Giá lấy từ</th><th>Kết quả</th></tr></thead><tbody>`;
+      res.lines.slice().sort((a, b) => (b.issues.length > 0) - (a.issues.length > 0)).forEach(l => {
+        const b = l.book, p = l.pdf, bad = l.issues.length > 0;
+        h += `<tr class="${bad ? 'bad' : ''}"><td>${l.idx || '—'}</td><td>${esc(l.ma)}</td><td class="c-num">${b ? fmt(b.luong) : '—'} / ${p ? fmt(p.qty) : '—'}</td><td class="c-num">${b ? fmt(b.donGia) : '—'} / ${p ? fmt(p.price) : '—'}</td><td class="c-num">${b ? fmt(b.triGia) : '—'} / ${p ? fmt(p.amount) : '—'}</td><td>${b ? esc(b.src) : '—'}</td><td>${bad ? '<span class="cmp-no">✗ ' + esc(l.issues.join('; ')) + '</span>' : '<span class="cmp-ok">✓ Khớp</span>'}${l.pdfCount > 1 || l.invCount > 1 ? `<div style="color:var(--muted)">đã cộng gộp: INV ${l.invCount || 1} dòng ↔ PDF ${l.pdfCount || 1} dòng${l.pdfPhieu ? ' (phiếu ' + esc(l.pdfPhieu.join(', ')) + ')' : ''}</div>` : ''}</td></tr>`;
+      });
+      h += '</tbody></table></div>';
+      // 4. BCCT
+      if (res.bcct) {
+        const bn = res.bcct.rows.filter(r => r.issues.length).length;
+        h += `<div class="cmp-sec">4. Đối chiếu BCCT (HS code + tên hàng) — ${esc(res.bcctInfo)} — ${res.bcct.rows.length - bn}/${res.bcct.rows.length} mã khớp</div><div class="cmp-scroll"><table class="cmp-tbl"><thead><tr><th>Mã hàng</th><th>HS INVOICE</th><th>HS BCCT</th><th>Tên hàng (INVOICE / phiếu PDF)</th><th>Tên hàng BCCT</th><th>Kết quả</th></tr></thead><tbody>`;
+        res.bcct.rows.slice().sort((a, b) => (b.issues.length > 0) - (a.issues.length > 0)).forEach(r => {
+          const bad = r.issues.length > 0;
+          const hsB = r.bcctRows.map(x => `<div class="${x.hsOk ? '' : 'cmp-no'}">${esc(x.hs || '(trống)')}</div>`).join('') || '—';
+          const nmB = r.bcctRows.map(x => `<div class="${x.nameOk ? '' : 'cmp-no'}">${esc(x.name)}${x.generic ? ' <span style="color:var(--muted)">(bỏ qua)</span>' : ''}</div>`).join('') || '—';
+          const nmI = r.invNames.concat(r.pdfNames).map(n => `<div>${esc(n)}</div>`).join('');
+          h += `<tr class="${bad ? 'bad' : ''}"><td>${esc(r.code)}</td><td>${esc(r.invHs.join(' / ') || '—')}</td><td>${hsB}</td><td>${nmI}</td><td>${nmB}</td><td>${bad ? '<span class="cmp-no">✗ ' + r.issues.map(esc).join('<br>✗ ') + '</span>' : '<span class="cmp-ok">✓ Khớp</span>'}${r.notes.length ? '<div style="color:var(--muted)">' + Array.from(new Set(r.notes)).map(esc).join('<br>') + '</div>' : ''}</td></tr>`;
+        });
+        h += '</tbody></table></div>';
+      } else {
+        h += `<div class="cmp-note">⚠️ ${bcctStale ? 'BCCT đã lưu là bản cũ nên chưa dùng được.' : 'Chưa có BCCT nên chưa đối chiếu được HS code / tên hàng.'} Bấm "Chọn file BCCT" ở phía trên khung chọn PDF (chọn xong tool tự đối chiếu lại).</div>`;
+      }
+      document.getElementById('cmpResult').innerHTML = h;
+    }
+
+    function downloadBook() {
+      try {
+        const aoa = [[null, null, null, 'hs code', null, null, null, null, null, null, null, null]];
+        const isConcat = document.getElementById('chkConcatCode').checked;
+        for (let i = 0; i < bookData.length; i++) {
+          const d = bookData[i], rn = i + 2;
+          aoa.push([null, d.ma, isConcat ? `${d.ma} - ${d.ten}` : d.ten, d.hs ? Number(d.hs) : null, 'VN', d.luong, 'PCE', d.luong, unit2('PCE'), d.donGia, { f: `F${rn}*J${rn}` }, HS_KO.includes(d.hs) ? 'KO' : null]);
+        }
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        ws['!cols'] = [{ wch: 3 }, { wch: 17 }, { wch: 100 }, { wch: 14 }, { wch: 6 }, { wch: 10 }, { wch: 7 }, { wch: 10 }, { wch: 7 }, { wch: 14 }, { wch: 20 }, { wch: 6 }];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+        XLSX.writeFile(wb, outFileName);
+      } catch (err) { setStatus('❌ Lỗi xuất file: ' + err.message, 'err') }
+    }
+  </script>
+</body>
+
+</html>
+
+
+
